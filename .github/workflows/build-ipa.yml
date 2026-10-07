@@ -36,16 +36,26 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
+      - name: Prepare Flutter iOS configuration
+        run: flutter build ios --config-only --no-codesign
+
       - name: Build unsigned iOS app
-        env:
-          CODE_SIGNING_ALLOWED: 'NO'
-          CODE_SIGNING_REQUIRED: 'NO'
-        run: flutter build ios
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
 
       - name: Package TrollStore IPA
         run: |
           set -euo pipefail
-          APP_PATH="build/ios/iphoneos/Runner.app"
+          APP_PATH="build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app"
           if [[ ! -d "$APP_PATH" ]]; then
             echo "Unsigned app not found: $APP_PATH" >&2
             exit 1
