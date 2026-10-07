@@ -1,0 +1,65 @@
+name: Build TrollStore iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'ios/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/build-ipa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-trollstore-ipa:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    env:
+      FLUTTER_VERSION: '3.41.7'
+      IPABUNDLE_NAME: 'AntigravityPlatformer.tipa'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Build unsigned iOS app
+        env:
+          CODE_SIGNING_ALLOWED: 'NO'
+          CODE_SIGNING_REQUIRED: 'NO'
+        run: flutter build ios
+
+      - name: Package TrollStore IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          if [[ ! -d "$APP_PATH" ]]; then
+            echo "Unsigned app not found: $APP_PATH" >&2
+            exit 1
+          fi
+
+          mkdir -p build/ios/trollstore/Payload
+          cp -R "$APP_PATH" build/ios/trollstore/Payload/Runner.app
+          cd build/ios/trollstore
+          zip -qr "../${IPABUNDLE_NAME}" Payload
+          cd ../..
+
+      - name: Upload TrollStore IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: antigravity-platformer-trollstore-ipa
+          path: build/ios/*.tipa
+          if-no-files-found: error
