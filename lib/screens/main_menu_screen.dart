@@ -126,8 +126,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         label: 'Play',
                         onPressed: () {
                           Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => LevelSelectScreen(gameController: _gameController),
+                            PageRouteBuilder(
+                              opaque: true,
+                              transitionDuration: const Duration(milliseconds: 350),
+                              pageBuilder: (context, animation, secondaryAnimation) =>
+                                  LevelSelectScreen(gameController: _gameController),
+                              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                return FadeTransition(opacity: animation, child: child);
+                              },
                             ),
                           );
                         },
@@ -156,13 +162,74 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: Colors.white24, width: 2),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF1E3A5F), Color(0xFF11223A), Color(0xFF0F1B2E)],
+                      ),
+                      border: Border.all(color: const Color(0x66F6C453), width: 2),
                       boxShadow: const [
                         BoxShadow(color: Color(0x66000000), blurRadius: 32, offset: Offset(0, 12)),
                       ],
                     ),
-                    child: const Center(
-                      child: Icon(Icons.image_not_supported_outlined, size: 120, color: Colors.white38),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(26),
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            top: -20,
+                            right: -20,
+                            child: Icon(
+                              Icons.shield_rounded,
+                              size: 220,
+                              color: Colors.white.withValues(alpha: 0.04),
+                            ),
+                          ),
+                          Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0x22F6C453),
+                                    border: Border.all(color: const Color(0x88F6C453), width: 2),
+                                    boxShadow: const [
+                                      BoxShadow(color: Color(0x44F6C453), blurRadius: 20),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.fort_rounded,
+                                    size: 72,
+                                    color: Color(0xFFF6C453),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                const Text(
+                                  'FLOATING REALM',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Defeat monsters • Collect coins\nRestore gravity balance',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Color(0xFFBDE7D1),
+                                    fontSize: 13,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

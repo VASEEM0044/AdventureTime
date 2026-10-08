@@ -37,15 +37,18 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (_, _, animation) => FadeTransition(
-            opacity: animation,
-            child: const MainMenuScreen(),
-          ),
-          transitionDuration: const Duration(milliseconds: 500),
+          opaque: true,
+          transitionDuration: const Duration(milliseconds: 400),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const MainMenuScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
         ),
       );
     });
   }
+
 
   @override
   void dispose() {

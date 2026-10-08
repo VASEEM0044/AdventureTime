@@ -1,9 +1,9 @@
-name: Build TrollStore iOS IPA
+name: Build Unsigned iOS IPA
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - 'lib/**'
       - 'ios/**'
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  build-trollstore-ipa:
+  build-unsigned-ipa:
     runs-on: macos-15
     timeout-minutes: 45
 
@@ -52,7 +52,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             build
 
-      - name: Package TrollStore IPA
+      - name: Package Unsigned IPA and TrollStore TIPA
         run: |
           set -euo pipefail
           APP_PATH="build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app"
@@ -61,15 +61,19 @@ jobs:
             exit 1
           fi
 
-          mkdir -p build/ios/trollstore/Payload
-          cp -R "$APP_PATH" build/ios/trollstore/Payload/Runner.app
-          cd build/ios/trollstore
+          mkdir -p build/ios/payload_dir/Payload
+          cp -R "$APP_PATH" build/ios/payload_dir/Payload/Runner.app
+          cd build/ios/payload_dir
+          zip -qr "../AntigravityPlatformer.ipa" Payload
           zip -qr "../${IPABUNDLE_NAME}" Payload
-          cd ../..
+          cd ../../..
 
-      - name: Upload TrollStore IPA artifact
+      - name: Upload Unsigned IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: antigravity-platformer-trollstore-ipa
-          path: build/ios/*.tipa
+          name: antigravity-platformer-unsigned-ipa
+          path: |
+            build/ios/*.ipa
+            build/ios/*.tipa
           if-no-files-found: error
+
