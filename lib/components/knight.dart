@@ -1,5 +1,6 @@
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame/sprite.dart';
 import 'package:flutter/material.dart';
 
 class KnightComponent extends PositionComponent with CollisionCallbacks, HasGameReference {
@@ -20,11 +21,11 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
   double _invulnerabilityTimer = 0;
   late final RectangleHitbox _hitbox;
 
-  SpriteAnimation? _idleAnimation;
-  SpriteAnimation? _runAnimation;
-  SpriteAnimation? _rollAnimation;
-  SpriteAnimation? _hurtAnimation;
-  SpriteAnimation? _defeatAnimation;
+  SpriteAnimationTicker? _idleTicker;
+  SpriteAnimationTicker? _runTicker;
+  SpriteAnimationTicker? _rollTicker;
+  SpriteAnimationTicker? _hurtTicker;
+  SpriteAnimationTicker? _defeatTicker;
 
   Vector2 velocity = Vector2.zero();
   void Function()? onDamage;
@@ -45,7 +46,7 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
       final image = await game.images.load('knight.png');
 
       // Row 0: Idle (4 frames of 32x32)
-      _idleAnimation = SpriteAnimation.fromFrameData(
+      final idleAnim = SpriteAnimation.fromFrameData(
         image,
         SpriteAnimationData.sequenced(
           amount: 4,
@@ -54,9 +55,10 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
           texturePosition: Vector2(0, 0),
         ),
       );
+      _idleTicker = idleAnim.createTicker();
 
       // Row 2: Run (8 frames of 32x32)
-      _runAnimation = SpriteAnimation.fromFrameData(
+      final runAnim = SpriteAnimation.fromFrameData(
         image,
         SpriteAnimationData.sequenced(
           amount: 8,
@@ -65,9 +67,10 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
           texturePosition: Vector2(0, 64),
         ),
       );
+      _runTicker = runAnim.createTicker();
 
       // Row 5: Roll (8 frames of 32x32)
-      _rollAnimation = SpriteAnimation.fromFrameData(
+      final rollAnim = SpriteAnimation.fromFrameData(
         image,
         SpriteAnimationData.sequenced(
           amount: 8,
@@ -76,9 +79,10 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
           texturePosition: Vector2(0, 160),
         ),
       );
+      _rollTicker = rollAnim.createTicker();
 
       // Row 6: Hurt (4 frames of 32x32)
-      _hurtAnimation = SpriteAnimation.fromFrameData(
+      final hurtAnim = SpriteAnimation.fromFrameData(
         image,
         SpriteAnimationData.sequenced(
           amount: 4,
@@ -87,9 +91,10 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
           texturePosition: Vector2(0, 192),
         ),
       );
+      _hurtTicker = hurtAnim.createTicker();
 
       // Row 7: Defeat (4 frames of 32x32)
-      _defeatAnimation = SpriteAnimation.fromFrameData(
+      final defeatAnim = SpriteAnimation.fromFrameData(
         image,
         SpriteAnimationData.sequenced(
           amount: 4,
@@ -99,6 +104,7 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
           loop: false,
         ),
       );
+      _defeatTicker = defeatAnim.createTicker();
     } catch (_) {
       // Fallback
     }
@@ -143,7 +149,7 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
   void update(double dt) {
     super.update(dt);
     if (isDefeated) {
-      _defeatAnimation?.update(dt);
+      _defeatTicker?.update(dt);
       return;
     }
 
@@ -156,13 +162,13 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
 
     // Update current active animation
     if (_rollRequested) {
-      _rollAnimation?.update(dt);
+      _rollTicker?.update(dt);
     } else if (isInvulnerable && _invulnerabilityTimer > 0.8) {
-      _hurtAnimation?.update(dt);
+      _hurtTicker?.update(dt);
     } else if (velocity.x.abs() > 10) {
-      _runAnimation?.update(dt);
+      _runTicker?.update(dt);
     } else {
-      _idleAnimation?.update(dt);
+      _idleTicker?.update(dt);
     }
 
     velocity.y += _gravity * dt;
@@ -219,21 +225,21 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
       canvas.scale(-1, 1);
     }
 
-    SpriteAnimation? currentAnim;
+    SpriteAnimationTicker? currentTicker;
     if (isDefeated) {
-      currentAnim = _defeatAnimation;
+      currentTicker = _defeatTicker;
     } else if (_rollRequested) {
-      currentAnim = _rollAnimation;
+      currentTicker = _rollTicker;
     } else if (isInvulnerable && _invulnerabilityTimer > 0.8) {
-      currentAnim = _hurtAnimation;
+      currentTicker = _hurtTicker;
     } else if (velocity.x.abs() > 10) {
-      currentAnim = _runAnimation;
+      currentTicker = _runTicker;
     } else {
-      currentAnim = _idleAnimation;
+      currentTicker = _idleTicker;
     }
 
-    if (currentAnim != null) {
-      currentAnim.getSprite().render(
+    if (currentTicker != null) {
+      currentTicker.getSprite().render(
         canvas,
         position: Vector2.zero(),
         size: size,

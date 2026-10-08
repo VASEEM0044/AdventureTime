@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flame/components.dart';
+import 'package:flame/sprite.dart';
 import 'package:flutter/material.dart';
 
 abstract class Collectible extends PositionComponent {
@@ -21,14 +22,14 @@ class CoinComponent extends Collectible with HasGameReference {
   CoinComponent({required super.position})
       : super(size: Vector2.all(28));
 
-  SpriteAnimation? _animation;
+  SpriteAnimationTicker? _animationTicker;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
     try {
       final image = await game.images.load('coin.png');
-      _animation = SpriteAnimation.fromFrameData(
+      final animation = SpriteAnimation.fromFrameData(
         image,
         SpriteAnimationData.sequenced(
           amount: 12,
@@ -36,6 +37,7 @@ class CoinComponent extends Collectible with HasGameReference {
           textureSize: Vector2(16, 16),
         ),
       );
+      _animationTicker = animation.createTicker();
     } catch (_) {
       // Fallback used if asset load fails
     }
@@ -44,8 +46,8 @@ class CoinComponent extends Collectible with HasGameReference {
   @override
   void update(double dt) {
     super.update(dt);
-    if (!collected && _animation != null) {
-      _animation!.update(dt);
+    if (!collected && _animationTicker != null) {
+      _animationTicker!.update(dt);
     }
   }
 
@@ -59,8 +61,8 @@ class CoinComponent extends Collectible with HasGameReference {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
     canvas.drawCircle(Offset(size.x / 2, size.y / 2), 12, glowPaint);
 
-    if (_animation != null) {
-      _animation!.getSprite().render(
+    if (_animationTicker != null) {
+      _animationTicker!.getSprite().render(
         canvas,
         position: Vector2.zero(),
         size: size,

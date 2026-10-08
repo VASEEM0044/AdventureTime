@@ -1,4 +1,5 @@
 import 'package:flame/components.dart';
+import 'package:flame/sprite.dart';
 import 'package:flutter/material.dart';
 
 class EnemyComponent extends PositionComponent with HasGameReference {
@@ -13,8 +14,8 @@ class EnemyComponent extends PositionComponent with HasGameReference {
   int direction;
   bool isAlive = true;
 
-  SpriteAnimation? _walkAnimation;
-  SpriteAnimation? _defeatAnimation;
+  SpriteAnimationTicker? _walkTicker;
+  SpriteAnimationTicker? _defeatTicker;
   bool _isDefeating = false;
   double _defeatTimer = 0;
 
@@ -27,7 +28,7 @@ class EnemyComponent extends PositionComponent with HasGameReference {
       final assetName = isGreen ? 'Enemy_slime_green.png' : 'Enemy_slime_purple.png';
       final image = await game.images.load(assetName);
 
-      _walkAnimation = SpriteAnimation.fromFrameData(
+      final walkAnim = SpriteAnimation.fromFrameData(
         image,
         SpriteAnimationData.sequenced(
           amount: 4,
@@ -36,8 +37,9 @@ class EnemyComponent extends PositionComponent with HasGameReference {
           texturePosition: Vector2(0, 24),
         ),
       );
+      _walkTicker = walkAnim.createTicker();
 
-      _defeatAnimation = SpriteAnimation.fromFrameData(
+      final defeatAnim = SpriteAnimation.fromFrameData(
         image,
         SpriteAnimationData.sequenced(
           amount: 4,
@@ -47,6 +49,7 @@ class EnemyComponent extends PositionComponent with HasGameReference {
           loop: false,
         ),
       );
+      _defeatTicker = defeatAnim.createTicker();
     } catch (_) {
       // Fallback
     }
@@ -59,7 +62,7 @@ class EnemyComponent extends PositionComponent with HasGameReference {
 
     if (_isDefeating) {
       _defeatTimer += dt;
-      _defeatAnimation?.update(dt);
+      _defeatTicker?.update(dt);
       if (_defeatTimer >= 0.35) {
         isAlive = false;
         removeFromParent();
@@ -67,7 +70,7 @@ class EnemyComponent extends PositionComponent with HasGameReference {
       return;
     }
 
-    _walkAnimation?.update(dt);
+    _walkTicker?.update(dt);
     position.x += direction * 90 * dt;
     if (position.x < 300 || position.x > 5100) {
       direction *= -1;
@@ -86,7 +89,7 @@ class EnemyComponent extends PositionComponent with HasGameReference {
   void render(Canvas canvas) {
     if (!isAlive) return;
 
-    final anim = _isDefeating ? (_defeatAnimation ?? _walkAnimation) : _walkAnimation;
+    final ticker = _isDefeating ? (_defeatTicker ?? _walkTicker) : _walkTicker;
 
     canvas.save();
     // Slime shadow
@@ -96,12 +99,12 @@ class EnemyComponent extends PositionComponent with HasGameReference {
       shadowPaint,
     );
 
-    if (anim != null) {
+    if (ticker != null) {
       if (direction < 0) {
         canvas.translate(size.x, 0);
         canvas.scale(-1, 1);
       }
-      anim.getSprite().render(
+      ticker.getSprite().render(
         canvas,
         position: Vector2.zero(),
         size: size,

@@ -101,7 +101,6 @@ class AntigravityGame extends FlameGame with HasCollisionDetection {
   bool _jumpPressed = false;
   bool _rollPressed = false;
   bool _gameOverShown = false;
-  double _screenWidth = 800;
 
   @override
   Color backgroundColor() => const Color(0xFF0D1B2A);
@@ -395,12 +394,6 @@ class AntigravityGame extends FlameGame with HasCollisionDetection {
     for (final coin in _coins) { _gameWorld.add(coin); }
     for (final enemy in _enemies) { _gameWorld.add(enemy); }
     for (final fruit in _fruits) { _gameWorld.add(fruit); }
-  }
-
-  @override
-  void onGameResize(Vector2 size) {
-    _screenWidth = size.x;
-    super.onGameResize(size);
   }
 }
 
