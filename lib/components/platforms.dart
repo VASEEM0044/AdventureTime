@@ -3,6 +3,8 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
+import '../game/sprite_atlas.dart';
+
 enum PlatformType { ground, grass, sand, gold, ice }
 
 class PlatformComponent extends PositionComponent
@@ -22,10 +24,15 @@ class PlatformComponent extends PositionComponent
   Sprite? _leftSprite;
   Sprite? _midSprite;
   Sprite? _rightSprite;
+  late final Paint _pixelPaint;
+
+  bool get debugHasSprites =>
+      _leftSprite != null && _midSprite != null && _rightSprite != null;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    _pixelPaint = pixelPaint();
     _hitbox = RectangleHitbox(
       position: Vector2(0, 0),
       size: size,
@@ -34,7 +41,11 @@ class PlatformComponent extends PositionComponent
     add(_hitbox);
 
     try {
-      _platformSheet = await game.images.load('platforms.png');
+      // Preloaded by AntigravityGame; load() hits the image cache.
+      _platformSheet = await game.images.load(SpriteFiles.platforms);
+      // Verified layout: 4 rows of 16px pitch (grass/sand/gold/ice);
+      // each row holds left/mid/right tiles of 16x9 at the TOP of its
+      // 16px band (y9-15 transparent, x48-63 empty).
       final rowIndex = switch (type) {
         PlatformType.grass => 0,
         PlatformType.sand => 1,
@@ -132,32 +143,44 @@ class PlatformComponent extends PositionComponent
       shadowPaint,
     );
 
-    // Draw left cap
-    _leftSprite!.render(
+    // Draw left cap (nearest-neighbour: keeps the 16x9 tiles crisp)
+    blitSprite(
       canvas,
-      position: Vector2(0, 0),
-      size: Vector2(capWidth, h),
+      _leftSprite!,
+      Vector2(capWidth, h),
+      _pixelPaint,
     );
 
-    // Draw repeating center segments
+    // Draw repeating center segments. Each mid tile is blitted whole
+    // inside a clip rect so partial end-tiles never smear or bleed
+    // past the right cap.
     double currentX = capWidth;
     final maxX = size.x - capWidth;
     while (currentX < maxX) {
       final drawWidth = (maxX - currentX).clamp(0.0, capWidth);
-      _midSprite!.render(
+      canvas.save();
+      canvas.clipRect(Rect.fromLTWH(currentX, 0, drawWidth, h));
+      canvas.translate(currentX, 0);
+      blitSprite(
         canvas,
-        position: Vector2(currentX, 0),
-        size: Vector2(drawWidth, h),
+        _midSprite!,
+        Vector2(capWidth, h),
+        _pixelPaint,
       );
+      canvas.restore();
       currentX += capWidth;
     }
 
     // Draw right cap
-    _rightSprite!.render(
+    canvas.save();
+    canvas.translate(size.x - capWidth, 0);
+    blitSprite(
       canvas,
-      position: Vector2(size.x - capWidth, 0),
-      size: Vector2(capWidth, h),
+      _rightSprite!,
+      Vector2(capWidth, h),
+      _pixelPaint,
     );
+    canvas.restore();
   }
 
   void _renderFallbackPlatform(Canvas canvas) {

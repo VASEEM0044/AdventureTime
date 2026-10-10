@@ -52,6 +52,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                 overlayBuilderMap: {
                   'pause': (context, game) => _PauseOverlay(game: _game),
                   'levelComplete': (context, game) => _LevelCompleteOverlay(game: _game),
+                  'gameOver': (context, game) => _GameOverOverlay(game: _game),
                 },
               ),
 
@@ -343,16 +344,16 @@ class _MovementControls extends StatelessWidget {
           icon: Icons.arrow_back_rounded,
           label: 'LEFT',
           color: const Color(0xFF3498DB),
-          onPressed: () => game.setInput(left: true),
-          onReleased: () => game.setInput(left: false),
+          onPressed: () => game.setLeft(true),
+          onReleased: () => game.setLeft(false),
         ),
         const SizedBox(width: 16),
         _FantasyControlButton(
           icon: Icons.arrow_forward_rounded,
           label: 'RIGHT',
           color: const Color(0xFF3498DB),
-          onPressed: () => game.setInput(right: true),
-          onReleased: () => game.setInput(right: false),
+          onPressed: () => game.setRight(true),
+          onReleased: () => game.setRight(false),
         ),
       ],
     );
@@ -376,8 +377,8 @@ class _ActionControls extends StatelessWidget {
           label: 'ROLL',
           color: const Color(0xFFE67E22),
           size: 64,
-          onPressed: () => game.setInput(roll: true),
-          onReleased: () => game.setInput(roll: false),
+          onPressed: () => game.setRoll(true),
+          onReleased: () => game.setRoll(false),
         ),
         const SizedBox(width: 16),
         // Jump / Up button
@@ -386,8 +387,8 @@ class _ActionControls extends StatelessWidget {
           label: 'JUMP',
           color: const Color(0xFF2ECC71),
           size: 72,
-          onPressed: () => game.setInput(jump: true),
-          onReleased: () => game.setInput(jump: false),
+          onPressed: () => game.setJump(true),
+          onReleased: () => game.setJump(false),
         ),
       ],
     );
@@ -551,6 +552,81 @@ class _PauseOverlay extends StatelessWidget {
                 onPressed: game.restartLevel,
                 icon: const Icon(Icons.replay_rounded),
                 label: const Text('Restart Level', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Quit
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white60,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.exit_to_app_rounded),
+                label: const Text('Quit to Levels'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Stylized Game Over Overlay (same pattern as pause/victory; restart or quit)
+class _GameOverOverlay extends StatelessWidget {
+  const _GameOverOverlay({required this.game});
+
+  final AntigravityGame game;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 320,
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xF0441A2B), Color(0xF00D1B2A)],
+          ),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFFF4757), width: 2),
+          boxShadow: const [
+            BoxShadow(color: Color(0x99000000), blurRadius: 28, offset: Offset(0, 8)),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.heart_broken_rounded, size: 54, color: Color(0xFFFF4757)),
+            const SizedBox(height: 10),
+            const Text(
+              'GAME OVER',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 2),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Score: ${game.score.value}  •  Coins: ${game.coinCount.value}',
+              style: const TextStyle(color: Color(0xFFBDE7D1), fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            // Retry
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2ECC71),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: game.restartLevel,
+                icon: const Icon(Icons.replay_rounded),
+                label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),

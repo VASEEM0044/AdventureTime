@@ -4,8 +4,11 @@ import 'package:flame/components.dart';
 import 'package:flame/sprite.dart';
 import 'package:flutter/material.dart';
 
+import '../game/sprite_atlas.dart';
+
 abstract class Collectible extends PositionComponent {
-  Collectible({required super.position, required super.size}) : super(priority: 5);
+  Collectible({required super.position, required super.size})
+      : super(priority: 5);
 
   bool collected = false;
   bool get isVisible => !collected;
@@ -18,29 +21,29 @@ abstract class Collectible extends PositionComponent {
   Rect get bounds => position & size;
 }
 
+/// Animated coin. Source is a 192x16 strip of twelve 16x16 spin frames,
+/// rendered at 32x32 (exact 2x) with nearest-neighbour sampling.
 class CoinComponent extends Collectible with HasGameReference {
-  CoinComponent({required super.position})
-      : super(size: Vector2.all(28));
+  CoinComponent({required super.position}) : super(size: Vector2.all(32));
 
   SpriteAnimationTicker? _animationTicker;
+  late final Paint _pixelPaint;
+
+  bool get hasAnimation => _animationTicker != null;
+
+  /// Left edge of the current 16px source frame (0..176). For tests.
+  double get debugFrameLeft =>
+      _animationTicker?.getSprite().srcPosition.x ?? -1;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    try {
-      final image = await game.images.load('coin.png');
-      final animation = SpriteAnimation.fromFrameData(
-        image,
-        SpriteAnimationData.sequenced(
-          amount: 12,
-          stepTime: 0.08,
-          textureSize: Vector2(16, 16),
-        ),
-      );
-      _animationTicker = animation.createTicker();
-    } catch (_) {
-      // Fallback used if asset load fails
-    }
+    _pixelPaint = pixelPaint();
+    // Preloaded by AntigravityGame; load() hits the image cache.
+    final image = await game.images.load(SpriteFiles.coin);
+    final animation =
+        SpriteAnimation.fromFrameData(image, CoinAtlas.spin());
+    _animationTicker = animation.createTicker();
   }
 
   @override
@@ -62,13 +65,9 @@ class CoinComponent extends Collectible with HasGameReference {
     canvas.drawCircle(Offset(size.x / 2, size.y / 2), 12, glowPaint);
 
     if (_animationTicker != null) {
-      _animationTicker!.getSprite().render(
-        canvas,
-        position: Vector2.zero(),
-        size: size,
-      );
+      blitSprite(canvas, _animationTicker!.getSprite(), size, _pixelPaint);
     } else {
-      // Fallback vector coin
+      // Fallback vector coin (only if the sheet failed to load)
       final paint = Paint()..color = const Color(0xFFFFD052);
       canvas.drawCircle(Offset(size.x / 2, size.y / 2), 12, paint);
       final inner = Paint()..color = const Color(0xFFFFA000);
@@ -77,22 +76,32 @@ class CoinComponent extends Collectible with HasGameReference {
   }
 }
 
+/// Fruit power-up. The sheet holds twelve 16x16 variants
+/// (variant = row * 3 + col); each instance renders ONE cell at 32x32.
 class FruitComponent extends Collectible with HasGameReference {
-  FruitComponent({required super.position})
-      : super(size: Vector2.all(32));
+  FruitComponent({required super.position, this.variant = 2})
+      : assert(variant >= 0 && variant < 12),
+        super(size: Vector2.all(32));
+
+  final int variant;
 
   double _time = 0;
   Sprite? _sprite;
+  late final Paint _pixelPaint;
+
+  bool get hasSprite => _sprite != null;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    try {
-      final image = await game.images.load('fruit_immunity.png');
-      _sprite = Sprite(image);
-    } catch (_) {
-      // Fallback
-    }
+    _pixelPaint = pixelPaint();
+    // Preloaded by AntigravityGame; load() hits the image cache.
+    final image = await game.images.load(SpriteFiles.fruit);
+    _sprite = Sprite(
+      image,
+      srcPosition: FruitAtlas.cellTopLeft(variant),
+      srcSize: Vector2.all(FruitAtlas.cell),
+    );
   }
 
   @override
@@ -114,14 +123,11 @@ class FruitComponent extends Collectible with HasGameReference {
     final auraPaint = Paint()
       ..color = const Color(0x8800E5FF)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8.0 * pulseScale);
-    canvas.drawCircle(Offset(size.x / 2, size.y / 2), 14 * pulseScale, auraPaint);
+    canvas.drawCircle(
+        Offset(size.x / 2, size.y / 2), 14 * pulseScale, auraPaint);
 
     if (_sprite != null) {
-      _sprite!.render(
-        canvas,
-        position: Vector2.zero(),
-        size: size,
-      );
+      blitSprite(canvas, _sprite!, size, _pixelPaint);
     } else {
       final paint = Paint()..color = const Color(0xFF00E5FF);
       canvas.drawCircle(Offset(size.x / 2, size.y / 2), 12, paint);
@@ -232,4 +238,3 @@ class DecorationComponent extends PositionComponent {
 }
 
 enum DecorationType { tree, bush, mushroom }
-

@@ -1,79 +1,64 @@
 name: Build Unsigned iOS IPA
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main, master]
-    paths:
-      - 'lib/**'
-      - 'ios/**'
-      - 'pubspec.yaml'
-      - 'pubspec.lock'
-      - '.github/workflows/build-ipa.yml'
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build-unsigned-ipa:
-    runs-on: macos-15
+  build-ipa:
+    name: Build & Package Unsigned IPA
+    runs-on: macos-14
     timeout-minutes: 45
 
-    env:
-      FLUTTER_VERSION: '3.41.7'
-      IPABUNDLE_NAME: 'AntigravityPlatformer.tipa'
-
     steps:
-      - name: Check out repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
           cache: true
 
-      - name: Install Flutter dependencies
+      - name: Verify Environment
+        run: |
+          flutter doctor -v
+          flutter --version
+
+      - name: Install Dependencies
         run: flutter pub get
 
-      - name: Prepare Flutter iOS configuration
-        run: flutter build ios --config-only --no-codesign
+      - name: Run Static Analysis
+        run: flutter analyze lib test
 
-      - name: Build unsigned iOS app
+      - name: Run Tests
+        run: flutter test
+
+      - name: Build iOS Release (Unsigned)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package Unsigned IPA & TIPA
         run: |
           set -euo pipefail
-          xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build/ios/DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            build
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qr AntigravityPlatformer.ipa Payload
+          zip -qr AntigravityPlatformer.tipa Payload
+          ls -lh
 
-      - name: Package Unsigned IPA and TrollStore TIPA
-        run: |
-          set -euo pipefail
-          APP_PATH="build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app"
-          if [[ ! -d "$APP_PATH" ]]; then
-            echo "Unsigned app not found: $APP_PATH" >&2
-            exit 1
-          fi
-
-          mkdir -p build/ios/payload_dir/Payload
-          cp -R "$APP_PATH" build/ios/payload_dir/Payload/Runner.app
-          cd build/ios/payload_dir
-          zip -qr "../AntigravityPlatformer.ipa" Payload
-          zip -qr "../${IPABUNDLE_NAME}" Payload
-          cd ../../..
-
-      - name: Upload Unsigned IPA artifact
+      - name: Upload IPA Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: antigravity-platformer-unsigned-ipa
+          name: AntigravityPlatformer-unsigned-ipa
           path: |
-            build/ios/*.ipa
-            build/ios/*.tipa
+            build/ios/ipa/*.ipa
+            build/ios/ipa/*.tipa
           if-no-files-found: error
-
+          retention-days: 14

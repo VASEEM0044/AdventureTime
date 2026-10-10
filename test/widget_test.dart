@@ -9,7 +9,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
-    expect(find.text('ANTIGRITY'), findsOneWidget);
+    expect(find.text('ANTIGRAVITY'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
@@ -17,6 +17,6 @@ void main() {
     expect(find.text('Play'), findsOneWidget);
     await tester.tap(find.text('Play'));
     await tester.pumpAndSettle();
-    expect(find.text('Select Level'), findsOneWidget);
+    expect(find.text('Choose Your Quest'), findsOneWidget);
   });
 }

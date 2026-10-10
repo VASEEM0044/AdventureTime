@@ -36,7 +36,7 @@ class GameController {
     if (!_settings.musicEnabled) return;
     if (_musicStarted) return;
 
-    await FlameAudio.bgm.play('audio/bgm.mp3', volume: 0.45);
+    await FlameAudio.bgm.play('bgm.mp3', volume: 0.45);
     _musicStarted = true;
   }
 

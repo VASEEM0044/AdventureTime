@@ -3,9 +3,20 @@ import 'package:flame/components.dart';
 import 'package:flame/sprite.dart';
 import 'package:flutter/material.dart';
 
-class KnightComponent extends PositionComponent with CollisionCallbacks, HasGameReference {
+import '../game/sprite_atlas.dart';
+
+/// Player knight. Source art is 32x32 per frame, rendered at 64x64
+/// (exact 2x) with nearest-neighbour sampling to keep pixels crisp.
+///
+/// Verified animation map (knight.png, 8x8 grid of 32px):
+/// idle = row 0 cols 0-3 | run = row 2 (8f) | roll = row 5 (8f) |
+/// hit = row 6 cols 0-3 | death = row 7 cols 0-3 (no loop).
+/// The sheet has NO jump/fall frames: airborne states reuse the run
+/// cycle. Row 3 (run-with-dust) is a verified spare, not wired.
+class KnightComponent extends PositionComponent
+    with CollisionCallbacks, HasGameReference {
   KnightComponent({required super.position})
-      : super(size: Vector2(56, 68), anchor: Anchor.topLeft, priority: 10);
+      : super(size: Vector2.all(64), anchor: Anchor.topLeft, priority: 10);
 
   static const double _moveSpeed = 210;
   static const double _jumpForce = 460;
@@ -17,9 +28,11 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
   int facing = 1;
   double _moveInput = 0;
   bool _jumpRequested = false;
+  bool _prevJumpHeld = false;
   bool _rollRequested = false;
   double _invulnerabilityTimer = 0;
   late final RectangleHitbox _hitbox;
+  late final Paint _pixelPaint;
 
   SpriteAnimationTicker? _idleTicker;
   SpriteAnimationTicker? _runTicker;
@@ -32,82 +45,52 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
   void Function()? onDefeat;
   void Function()? onCollectedFruit;
 
+  bool get debugHasSprites =>
+      _idleTicker != null &&
+      _runTicker != null &&
+      _rollTicker != null &&
+      _hurtTicker != null &&
+      _defeatTicker != null;
+
+  /// True while the ROLL button is held (and not defeated). Rolling is the
+  /// dodge: it plays the roll cycle and lets the knight pass through
+  /// slimes unharmed (see AntigravityGame collision handling).
+  bool get isRolling => _rollRequested && !isDefeated;
+
+  /// Animation state name for tests/debug. 'air' reuses the run cycle
+  /// (no jump/fall frames exist in the sheet).
+  String get debugAnimName {
+    if (isDefeated) return 'death';
+    if (_rollRequested) return 'roll';
+    if (isInvulnerable && _invulnerabilityTimer > 0.8) return 'hit';
+    if (!isGrounded) return 'air';
+    if (velocity.x.abs() > 10) return 'run';
+    return 'idle';
+  }
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    _pixelPaint = pixelPaint();
     _hitbox = RectangleHitbox(
-      position: Vector2(10, 8),
-      size: Vector2(width - 20, height - 12),
+      position: Vector2(12, 8),
+      size: Vector2(width - 24, height - 10),
       collisionType: CollisionType.active,
     );
     add(_hitbox);
 
-    try {
-      final image = await game.images.load('knight.png');
-
-      // Row 0: Idle (4 frames of 32x32)
-      final idleAnim = SpriteAnimation.fromFrameData(
-        image,
-        SpriteAnimationData.sequenced(
-          amount: 4,
-          stepTime: 0.16,
-          textureSize: Vector2(32, 32),
-          texturePosition: Vector2(0, 0),
-        ),
-      );
-      _idleTicker = idleAnim.createTicker();
-
-      // Row 2: Run (8 frames of 32x32)
-      final runAnim = SpriteAnimation.fromFrameData(
-        image,
-        SpriteAnimationData.sequenced(
-          amount: 8,
-          stepTime: 0.09,
-          textureSize: Vector2(32, 32),
-          texturePosition: Vector2(0, 64),
-        ),
-      );
-      _runTicker = runAnim.createTicker();
-
-      // Row 5: Roll (8 frames of 32x32)
-      final rollAnim = SpriteAnimation.fromFrameData(
-        image,
-        SpriteAnimationData.sequenced(
-          amount: 8,
-          stepTime: 0.07,
-          textureSize: Vector2(32, 32),
-          texturePosition: Vector2(0, 160),
-        ),
-      );
-      _rollTicker = rollAnim.createTicker();
-
-      // Row 6: Hurt (4 frames of 32x32)
-      final hurtAnim = SpriteAnimation.fromFrameData(
-        image,
-        SpriteAnimationData.sequenced(
-          amount: 4,
-          stepTime: 0.12,
-          textureSize: Vector2(32, 32),
-          texturePosition: Vector2(0, 192),
-        ),
-      );
-      _hurtTicker = hurtAnim.createTicker();
-
-      // Row 7: Defeat (4 frames of 32x32)
-      final defeatAnim = SpriteAnimation.fromFrameData(
-        image,
-        SpriteAnimationData.sequenced(
-          amount: 4,
-          stepTime: 0.15,
-          textureSize: Vector2(32, 32),
-          texturePosition: Vector2(0, 224),
-          loop: false,
-        ),
-      );
-      _defeatTicker = defeatAnim.createTicker();
-    } catch (_) {
-      // Fallback
-    }
+    // game.images is preloaded by AntigravityGame; load() hits the cache.
+    final image = await game.images.load(SpriteFiles.knight);
+    _idleTicker =
+        SpriteAnimation.fromFrameData(image, KnightAtlas.idle()).createTicker();
+    _runTicker =
+        SpriteAnimation.fromFrameData(image, KnightAtlas.run()).createTicker();
+    _rollTicker =
+        SpriteAnimation.fromFrameData(image, KnightAtlas.roll()).createTicker();
+    _hurtTicker =
+        SpriteAnimation.fromFrameData(image, KnightAtlas.hit()).createTicker();
+    _defeatTicker = SpriteAnimation.fromFrameData(image, KnightAtlas.death())
+        .createTicker();
   }
 
   void setInput(double moveInput, bool jump, bool roll, double dt) {
@@ -118,15 +101,13 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
     if (_moveInput != 0) {
       facing = _moveInput > 0 ? 1 : -1;
     }
-    if (_jumpRequested && isGrounded) {
+    // Rising-edge jump: a held button jumps once per press and never
+    // auto-bunny-hops on landing. Requires grounded state.
+    if (_jumpRequested && !_prevJumpHeld && isGrounded) {
       velocity.y = -_jumpForce;
       isGrounded = false;
     }
-    if (_rollRequested) {
-      size = Vector2(58, 54);
-    } else {
-      size = Vector2(56, 68);
-    }
+    _prevJumpHeld = _jumpRequested;
   }
 
   void activateImmunity() {
@@ -140,9 +121,28 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
     velocity.setZero();
   }
 
+  /// Advances only the death animation. Used by the game when the world
+  /// simulation is frozen after death.
+  void updateDefeat(double dt) {
+    _defeatTicker?.update(dt);
+  }
+
+  /// Rewinds the death animation for a level restart.
+  void resetAnimation() {
+    _defeatTicker?.reset();
+  }
+
   void takeDamage() {
     isInvulnerable = true;
     _invulnerabilityTimer = 1.2;
+  }
+
+  SpriteAnimationTicker? _currentTicker() {
+    if (isDefeated) return _defeatTicker;
+    if (_rollRequested) return _rollTicker;
+    if (isInvulnerable && _invulnerabilityTimer > 0.8) return _hurtTicker;
+    if (!isGrounded || velocity.x.abs() > 10) return _runTicker;
+    return _idleTicker;
   }
 
   @override
@@ -160,16 +160,7 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
       }
     }
 
-    // Update current active animation
-    if (_rollRequested) {
-      _rollTicker?.update(dt);
-    } else if (isInvulnerable && _invulnerabilityTimer > 0.8) {
-      _hurtTicker?.update(dt);
-    } else if (velocity.x.abs() > 10) {
-      _runTicker?.update(dt);
-    } else {
-      _idleTicker?.update(dt);
-    }
+    _currentTicker()?.update(dt);
 
     velocity.y += _gravity * dt;
     position += velocity * dt;
@@ -225,30 +216,23 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
       canvas.scale(-1, 1);
     }
 
-    SpriteAnimationTicker? currentTicker;
-    if (isDefeated) {
-      currentTicker = _defeatTicker;
-    } else if (_rollRequested) {
-      currentTicker = _rollTicker;
-    } else if (isInvulnerable && _invulnerabilityTimer > 0.8) {
-      currentTicker = _hurtTicker;
-    } else if (velocity.x.abs() > 10) {
-      currentTicker = _runTicker;
-    } else {
-      currentTicker = _idleTicker;
-    }
-
+    final currentTicker = _currentTicker();
     if (currentTicker != null) {
-      currentTicker.getSprite().render(
-        canvas,
-        position: Vector2.zero(),
-        size: size,
-      );
+      // Nearest-neighbour blit keeps the 32px art crisp at 64px.
+      blitSprite(canvas, currentTicker.getSprite(), size, _pixelPaint);
     } else {
-      // Stylized fallback knight
-      final paint = Paint()..color = isInvulnerable ? const Color(0xFF9EF5FF) : const Color(0xFF5EA0FF);
-      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.x, size.y), const Radius.circular(10)), paint);
-      canvas.drawRect(Rect.fromLTWH(facing > 0 ? size.x - 18 : 6, 16, 12, 12), Paint()..color = Colors.white);
+      // Stylized fallback knight (only if the sheet failed to load)
+      final paint = Paint()
+        ..color = isInvulnerable
+            ? const Color(0xFF9EF5FF)
+            : const Color(0xFF5EA0FF);
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(
+              Rect.fromLTWH(0, 0, size.x, size.y), const Radius.circular(10)),
+          paint);
+      canvas.drawRect(
+          Rect.fromLTWH(facing > 0 ? size.x - 18 : 6, 16, 12, 12),
+          Paint()..color = Colors.white);
     }
 
     canvas.restore();
@@ -256,4 +240,3 @@ class KnightComponent extends PositionComponent with CollisionCallbacks, HasGame
 
   Rect get bounds => position & size;
 }
-
